@@ -1,0 +1,4 @@
+PyMySQL==0.9.3
+redis
+boto3
+cryptography

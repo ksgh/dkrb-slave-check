@@ -1,0 +1,83 @@
+version: '3'
+
+networks:
+  net-generic:
+    external:
+      name: net-generic
+
+## stack "slave"... combined you get service "slave_check"
+## All env's passed in should be prefixed with "SC_"... with the exception of http(s)?_proxy
+## Also see: https://docs.docker.com/compose/compose-file/#restart_policy
+
+services:
+  check:
+    image: kshenk/slave-check:latest
+    networks:
+      - net-generic
+    environment:
+      PS1: '[\[\e[1;32m\]\u\[\e[m\]@\[\e[1;32m\]slave-check\[\e[m\] \[\e[33m\]\w\[\e[m\]]# '
+
+      ## Match mode means we're either going to be looking for actual AWS instances,
+      ## or mysql instances running within the same docker network
+      ## SC_MATCH_MODE: <aws|docker>
+      SC_MATCH_MODE: aws
+
+      ## Specify a host, or host prefixes to check replication on
+      SC_AWS_HOST_MATCH_PREFIX: db-
+
+      ## You can optionally supply a list of host prefixes to ignore in the checks
+      #SC_AWS_IGNORE_HOST_PREF: host-00,host-01
+
+      ## Optional AWS tag (key & val) to match on
+      SC_AWS_TAG_KEY: instance_purpose
+      SC_AWS_TAG_VAL: mysql
+
+      ## If attempting to locate AWS instances, access key & secret will be required
+      SC_AWS_ACCESS_KEY:
+      SC_AWS_SECRET_KEY:
+
+      ## I think these are self-explanatory
+      SC_SLAVE_USERNAME: username
+      SC_SLAVE_PASSWORD: <redacted>
+      SC_SLAVE_PORT: 3306
+
+      ## All aws regions that you wish to discover hosts in must be 'whitelisted' here.
+      SC_AWS_REGION: us-east-2,us-west-2
+
+      ## Redis Host (if more than one are provided we'll assume redis is running sentinels)
+      SC_REDIS_HOST: redis
+
+      ## If we want the "slave_status" key to expire, set this (in seconds). otherwise comment it out to turn that off.
+      SC_REDIS_KEY_EXPIRE: 25
+
+      ## how many times to allow the app to loop
+      SC_ITERATIONS: 10
+
+      ## how long to sleep in between iterations
+      SC_CYCLE_SLEEP: 2
+
+      ## current has no bearing on anything
+      #SC_SLAVE_LAG_THRESHOLD: int
+
+      ## Time in seconds for lag to be "in the green"
+      SC_SLAVE_MAX_GREEN: 3
+
+      ## range(start, len) for lag to be "in the yellow"
+      ## This is optional and the range will be calculated if left blank
+      #SC_SLAVE_RANGE_YELLOW: start,length
+
+      ## If slave lag is greater than this (in seconds) we're in the red
+      SC_SLAVE_MIN_RED: 7
+
+    restart: always
+    deploy:
+      replicas: 1
+      update_config:
+        parallelism: 1
+        delay: 3s
+      restart_policy:
+        condition: any
+        delay: 2s
+        max_attempts: 5
+        window: 60s
+
